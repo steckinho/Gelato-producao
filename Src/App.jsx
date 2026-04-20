@@ -5,7 +5,7 @@ import { db } from "./firebase.js";
 const FIELDS = [
   { id: "estoque", label: "Em Estoque", icon: "📦", unit: "un" },
   { id: "entregasFuturas", label: "Entregas Futuras", icon: "🚚", unit: "un" },
-  { id: "vendasSemEntrega", label: "Vendas s/ Entrega", icon: "🏷️", unit: "un" },
+  { id: "vendasSemEntrega", label: "Vendas Entregues", icon: "✅", unit: "un" },
 ];
 
 const INITIAL_PRODUCTS = {
@@ -58,7 +58,7 @@ function calcMonthlySales(orders, product) {
 
 // ── PRODUCTION TAB ────────────────────────────────────────────────────────────
 
-function ProductionTab({ tab, data, orders, extraProducts, onAddProduct, accent }) {
+function ProductionTab({ tab, data, orders, extraProducts, onAddProduct, accent, onNavigateToVendas }) {
   const [edits, setEdits] = useState({});
   const [flash, setFlash] = useState("");
   const [newProduct, setNewProduct] = useState("");
@@ -104,16 +104,29 @@ function ProductionTab({ tab, data, orders, extraProducts, onAddProduct, accent 
 
       {/* Summary */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-        {FIELDS.map(({ id, label, icon, unit }) => (
-          <div key={id} style={{ flex: "1 1 100px", background: "#fff", borderRadius: 12, padding: "10px 14px", borderLeft: "4px solid " + accent }}>
-            <div style={{ fontSize: 10, color: "#999", textTransform: "uppercase", fontWeight: 700 }}>{icon} {label}</div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: id === "estoque" && totals[id] < 0 ? "#ef4444" : accent }}>
-              {totals[id] !== 0 ? totals[id].toLocaleString("pt-BR") : "—"}
-              {id === "estoque" && totals[id] < 0 && <span style={{ fontSize: 11, marginLeft: 4 }}>⚠️ produzir</span>}
+        {FIELDS.map(({ id, label, icon, unit }) => {
+          const clickable = id === "entregasFuturas" || id === "vendasSemEntrega";
+          return (
+            <div key={id}
+              onClick={clickable ? () => onNavigateToVendas(id === "entregasFuturas" ? "pending" : "delivered") : undefined}
+              style={{
+                flex: "1 1 100px", background: "#fff", borderRadius: 12, padding: "10px 14px",
+                borderLeft: "4px solid " + accent,
+                cursor: clickable ? "pointer" : "default",
+                boxShadow: clickable ? "0 2px 8px rgba(0,0,0,0.08)" : "none",
+                transition: "transform 0.1s",
+              }}>
+              <div style={{ fontSize: 10, color: "#999", textTransform: "uppercase", fontWeight: 700 }}>
+                {icon} {label} {clickable && <span style={{ color: accent }}>↗</span>}
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: id === "estoque" && totals[id] < 0 ? "#ef4444" : accent }}>
+                {totals[id] !== 0 ? totals[id].toLocaleString("pt-BR") : "—"}
+                {id === "estoque" && totals[id] < 0 && <span style={{ fontSize: 11, marginLeft: 4 }}>⚠️ produzir</span>}
+              </div>
+              <div style={{ fontSize: 10, color: "#bbb" }}>{unit}</div>
             </div>
-            <div style={{ fontSize: 10, color: "#bbb" }}>{unit}</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Flavor cards */}
@@ -189,7 +202,7 @@ function ProductionTab({ tab, data, orders, extraProducts, onAddProduct, accent 
 
 // ── ORDER CARD ────────────────────────────────────────────────────────────────
 
-function OrderCard({ order, accent, onDeliver, onReopen, onSaveEdit }) {
+function OrderCard({ order, accent, onDeliver, onReopen, onSaveEdit, onDelete }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editClient, setEditClient] = useState(order.client);
@@ -241,7 +254,7 @@ function OrderCard({ order, accent, onDeliver, onReopen, onSaveEdit }) {
               </div>
             ))}
           </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
             {!order.delivered && onDeliver && (
               <button onClick={onDeliver} style={{ flex: 1, padding: "10px", borderRadius: 9, border: "none", background: accent, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                 Marcar Entregue
@@ -254,6 +267,13 @@ function OrderCard({ order, accent, onDeliver, onReopen, onSaveEdit }) {
             )}
             <button onClick={() => setEditing(true)} style={{ flex: 1, padding: "10px", borderRadius: 9, border: "1.5px solid #e0e0e0", background: "#fff", color: "#555", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
               Editar
+            </button>
+            <button onClick={() => {
+              if (window.confirm("Excluir esta venda? Esta acao nao pode ser desfeita.")) {
+                onDelete && onDelete();
+              }
+            }} style={{ padding: "10px 14px", borderRadius: 9, border: "none", background: "#fee2e2", color: "#dc2626", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+              🗑️
             </button>
           </div>
           {order.delivered && order.deliveredDate && (
@@ -307,7 +327,7 @@ function OrderCard({ order, accent, onDeliver, onReopen, onSaveEdit }) {
 
 // ── SALES TAB ─────────────────────────────────────────────────────────────────
 
-function SalesTab({ salesData, extraProducts }) {
+function SalesTab({ salesData, extraProducts, initialFilter }) {
   const accent = "#0f766e";
   const [view, setView] = useState("list");
   const [cliente, setCliente] = useState("");
@@ -315,7 +335,7 @@ function SalesTab({ salesData, extraProducts }) {
   const [items, setItems] = useState([{ product: "Spumoni 12 caixas", qty: "", price: "" }]);
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState("");
-  const [filter, setFilter] = useState("pending");
+  const [filter, setFilter] = useState(initialFilter || "pending");
 
   const allProducts = {
     "Slices": INITIAL_PRODUCTS["Slices"],
@@ -412,6 +432,24 @@ function SalesTab({ salesData, extraProducts }) {
     setTimeout(() => setFlash(""), 2000);
   }
 
+  async function deleteOrder(order) {
+    // Reverse stock effects if not delivered
+    if (!order.delivered) {
+      for (const it of order.items) {
+        const cat = Object.entries(allProducts).find(([, prods]) => prods.includes(it.product))?.[0] || "";
+        if (!cat) continue;
+        const base = "gelato/" + cat + "/" + it.product;
+        const snapEF = await get(ref(db, base + "/entregasFuturas"));
+        await set(ref(db, base + "/entregasFuturas"), String(Math.max(0, (Number(snapEF.val()) || 0) - it.qty)));
+        const snapEst = await get(ref(db, base + "/estoque"));
+        await set(ref(db, base + "/estoque"), String((Number(snapEst.val()) || 0) + it.qty));
+      }
+    }
+    await remove(ref(db, "sales/" + order.id));
+    setFlash("Venda excluida!");
+    setTimeout(() => setFlash(""), 2000);
+  }
+
   const orderTotal = items.reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.price) || 0), 0);
 
   return (
@@ -456,6 +494,7 @@ function SalesTab({ salesData, extraProducts }) {
               onDeliver={!order.delivered ? () => markDelivered(order) : null}
               onReopen={order.delivered ? () => reopenOrder(order) : null}
               onSaveEdit={saveEdit}
+              onDelete={() => deleteOrder(order)}
             />
           ))}
         </>
@@ -543,10 +582,17 @@ export default function App() {
     return () => { u1(); u2(); u3(); };
   }, []);
 
+  const [vendasFilter, setVendasFilter] = useState("pending");
+
   async function handleAddProduct(tabName, productName) {
     const current = extraProducts[tabName] || [];
     if (current.includes(productName)) return;
     await set(ref(db, "extraProducts/" + tabName), [...current, productName]);
+  }
+
+  function navigateToVendas(filter) {
+    setVendasFilter(filter);
+    setTab("🛒 Vendas");
   }
 
   const orders = salesData ? Object.values(salesData) : [];
@@ -605,9 +651,9 @@ export default function App() {
         </div>
       </div>
       {tab === "🛒 Vendas" ? (
-        <SalesTab salesData={salesData} extraProducts={extraProducts} />
+        <SalesTab salesData={salesData} extraProducts={extraProducts} initialFilter={vendasFilter} />
       ) : (
-        <ProductionTab tab={tab} data={data} orders={orders} extraProducts={extraProducts} onAddProduct={handleAddProduct} accent={accent} />
+        <ProductionTab tab={tab} data={data} orders={orders} extraProducts={extraProducts} onAddProduct={handleAddProduct} accent={accent} onNavigateToVendas={navigateToVendas} />
       )}
     </div>
   );

@@ -32,7 +32,7 @@ const TAB_ICON = {
 };
 
 const PROD_TABS = ["Slices", "🍦 Sorvetes", "🧊 Italian Ice", "🍫 Chocolates"];
-const ALL_TABS = [...PROD_TABS, "🛒 Vendas"];
+const ALL_TABS = [...PROD_TABS, "🛒 Vendas", "🚚 Entregas"];
 
 function fmtCurrency(v) {
   return Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "USD" });
@@ -367,6 +367,8 @@ function SalesTab({ salesData, extraProducts, initialFilter }) {
       items: items.map((it) => ({ product: it.product, qty: Number(it.qty), price: Number(it.price) })),
       total: items.reduce((s, it) => s + Number(it.qty) * Number(it.price), 0),
     };
+    order.deliveryDate = order.deliveryDate || null;
+    order.delivered = order.delivered || false;
     await push(ref(db, "sales"), order);
     // Update Entregas Futuras and decrease Estoque (can go negative)
     for (const it of order.items) {
@@ -656,5 +658,100 @@ export default function App() {
         <ProductionTab tab={tab} data={data} orders={orders} extraProducts={extraProducts} onAddProduct={handleAddProduct} accent={accent} onNavigateToVendas={navigateToVendas} />
       )}
     </div>
+    {tab === "🚚 Entregas" && (
+      <div style={{ padding: 16 }}>
+        <h2>Entregas Pendentes</h2>
+    
+        {sales
+          .filter((s) => !s.delivered)
+          .sort(
+            (a, b) =>
+              new Date(a.deliveryDate || 0) -
+              new Date(b.deliveryDate || 0)
+          )
+          .map((s) => (
+            <div
+              key={s.id}
+              style={{
+                border: "1px solid #ddd",
+                padding: 10,
+                marginBottom: 8,
+                borderRadius: 8,
+                background: "#fff",
+                cursor: "pointer"
+              }}
+              onClick={() => setSelectedSale(s)}
+            >
+              <b>{s.customer}</b> <br />
+              📅 {s.deliveryDate || "Sem data"}
+    
+              <br /><br />
+    
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  set(
+                    ref(db, "sales/" + s.id + "/delivered"),
+                    true
+                  );
+                }}
+              >
+                Marcar como entregue
+              </button>
+            </div>
+          ))}
+      </div>
+    )}
+    
   );
+  {selectedSale && (
+    <div style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      width: "100%",
+      height: "100%",
+      background: "#00000088",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }}>
+      <div style={{ background: "#fff", padding: 20, borderRadius: 10 }}>
+        <h2>Detalhes da Venda</h2>
+  
+        <p><b>Cliente:</b> {selectedSale.customer}</p>
+        <p><b>Entrega:</b> {selectedSale.deliveryDate || "Sem data"}</p>
+        <p>
+          <b>Status:</b>{" "}
+          {selectedSale.delivered ? "✅ Entregue" : "⏳ Pendente"}
+        </p>
+  
+        {(selectedSale.items || []).map((item, i) => (
+          <p key={i}>
+            {item.product} - {item.qty}
+          </p>
+        ))}
+  
+        {!selectedSale.delivered && (
+          <button
+            onClick={async () => {
+              await set(
+                ref(db, "sales/" + selectedSale.id + "/delivered"),
+                true
+              );
+              setSelectedSale(null);
+            }}
+          >
+            Marcar como entregue
+          </button>
+        )}
+  
+        <br /><br />
+  
+        <button onClick={() => setSelectedSale(null)}>
+          Fechar
+        </button>
+      </div>
+    </div>
+  )}
 }

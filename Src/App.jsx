@@ -24,18 +24,17 @@ const TABS = [
   { id: "chocolates", label: "Chocolates" },
   { id: "vendas",     label: "Vendas" },
   { id: "entregas",   label: "Entregas" },
-];
-
-const DEFAULT_SLICES = [
-  { id: "sp12", name: "Spumoni 12 caixas",    stock: 0, deliveries: 0, delivered: 0, history: [] },
-  { id: "sp20", name: "Spumoni 20 caixas",    stock: 0, deliveries: 0, delivered: 0, history: [] },
-  { id: "np12", name: "Neapolitan 12 caixas", stock: 0, deliveries: 0, delivered: 0, history: [] },
-  { id: "np20", name: "Neapolitan 20 caixas", stock: 0, deliveries: 0, delivered: 0, history: [] },
+  { id: "clientes",   label: "Clientes" },
 ];
 
 const DEFAULT_DATA = {
-  slices: DEFAULT_SLICES,
-  sorvetes: [], italianice: [], chocolates: [], vendas: [],
+  slices: [
+    { id: "sp12", name: "Spumoni 12 caixas",    stock: 0, deliveries: 0, delivered: 0, history: [] },
+    { id: "sp20", name: "Spumoni 20 caixas",    stock: 0, deliveries: 0, delivered: 0, history: [] },
+    { id: "np12", name: "Neapolitan 12 caixas", stock: 0, deliveries: 0, delivered: 0, history: [] },
+    { id: "np20", name: "Neapolitan 20 caixas", stock: 0, deliveries: 0, delivered: 0, history: [] },
+  ],
+  sorvetes: [], italianice: [], chocolates: [], vendas: [], clientes: [],
 };
 
 const C = {
@@ -48,6 +47,9 @@ const C = {
 
 function newItem(name) {
   return { id: Date.now().toString() + Math.random().toString(36).slice(2), name, stock: 0, deliveries: 0, delivered: 0, history: [] };
+}
+function newCliente(nome, endereco, telefone) {
+  return { id: Date.now().toString() + Math.random().toString(36).slice(2), nome, endereco: endereco || "", telefone: telefone || "" };
 }
 function calcAvg(history = []) {
   const recent = history.filter(h => Date.now() - h.ts < 90 * 864e5 && h.type === "delivered");
@@ -84,7 +86,6 @@ function NumField({ label, value, onChange }) {
   );
 }
 
-// BULK ADD
 function BulkAdd({ onAdd }) {
   const [qty, setQty] = useState("");
   const go = () => { const n = parseInt(qty); if (!isNaN(n) && n !== 0) { onAdd(n); setQty(""); } };
@@ -98,34 +99,26 @@ function BulkAdd({ onAdd }) {
   );
 }
 
-// PRODUCT CARD - com edicao de nome
 function ProductCard({ item, onChange, onDelete, showDelete }) {
   const avg = calcAvg(item.history);
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState(item.name);
-
-  const commitName = () => {
-    if (draftName.trim()) onChange({ ...item, name: draftName.trim() });
-    setEditingName(false);
-  };
+  const commitName = () => { if (draftName.trim()) onChange({ ...item, name: draftName.trim() }); setEditingName(false); };
   const update = (field, val) => {
     const updated = { ...item, [field]: val };
     if (field === "delivered") updated.history = [...(item.history || []), { ts: Date.now(), type: "delivered", val: val - item.delivered }];
     onChange(updated);
   };
-
   return (
     <div style={{ background: C.white, borderRadius: 16, padding: 18, boxShadow: C.shadow, marginBottom: 12, borderLeft: `4px solid ${C.pink}` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
         <div style={{ flex: 1, marginRight: 8 }}>
           {editingName
-            ? <input autoFocus value={draftName} onChange={e => setDraftName(e.target.value)}
-                onBlur={commitName} onKeyDown={e => e.key === "Enter" && commitName()}
+            ? <input autoFocus value={draftName} onChange={e => setDraftName(e.target.value)} onBlur={commitName} onKeyDown={e => e.key === "Enter" && commitName()}
                 style={{ fontSize: 17, fontWeight: 900, color: C.text, border: `2px solid ${C.teal}`, borderRadius: 8, padding: "4px 8px", outline: "none", width: "100%", fontFamily: "inherit" }} />
             : <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: C.text }}>{item.name}</h3>
-                <button onClick={() => { setDraftName(item.name); setEditingName(true); }}
-                  style={{ background: C.tealLight, border: `1px solid ${C.teal}33`, borderRadius: 6, padding: "2px 8px", color: C.teal, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>Editar</button>
+                <button onClick={() => { setDraftName(item.name); setEditingName(true); }} style={{ background: C.tealLight, border: `1px solid ${C.teal}33`, borderRadius: 6, padding: "2px 8px", color: C.teal, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>Editar</button>
               </div>}
           {avg > 0 && <div style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 5, background: C.pinkLight, borderRadius: 20, padding: "2px 10px", fontSize: 12, fontWeight: 700, color: C.pink }}>Media mensal: {avg} un/mes</div>}
         </div>
@@ -141,7 +134,6 @@ function ProductCard({ item, onChange, onDelete, showDelete }) {
   );
 }
 
-// SUMMARY CARDS
 function SummaryCards({ items }) {
   const st = items.reduce((s, i) => s + i.stock, 0);
   const de = items.reduce((s, i) => s + i.deliveries, 0);
@@ -167,7 +159,6 @@ function SummaryCards({ items }) {
   );
 }
 
-// ADD FLAVOR
 function AddFlavor({ onAdd }) {
   const [name, setName] = useState("");
   const go = () => { if (name.trim()) { onAdd(name.trim()); setName(""); } };
@@ -180,21 +171,120 @@ function AddFlavor({ onAdd }) {
   );
 }
 
-// NOVA VENDA FORM
-function NovaVendaForm({ allProducts, onSave, onCancel }) {
-  const [cliente, setCliente] = useState("");
+// CLIENTES TAB
+function ClientesTab({ clientes, onDataChange, data }) {
+  const [view, setView] = useState("list"); // "list" | "add" | "edit"
+  const [editCliente, setEditCliente] = useState(null);
+  const [form, setForm] = useState({ nome: "", endereco: "", telefone: "" });
+
+  const inp = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1.5px solid ${C.border}`, fontSize: 15, outline: "none", background: C.white, boxSizing: "border-box", color: C.text, fontFamily: "inherit", marginBottom: 12 };
+
+  const openAdd = () => { setForm({ nome: "", endereco: "", telefone: "" }); setView("add"); };
+  const openEdit = (c) => { setForm({ nome: c.nome, endereco: c.endereco, telefone: c.telefone }); setEditCliente(c); setView("edit"); };
+
+  const save = () => {
+    if (!form.nome.trim()) return;
+    let next;
+    if (view === "add") {
+      next = [...clientes, newCliente(form.nome.trim(), form.endereco.trim(), form.telefone.trim())];
+    } else {
+      next = clientes.map(c => c.id === editCliente.id ? { ...c, ...form, nome: form.nome.trim(), endereco: form.endereco.trim(), telefone: form.telefone.trim() } : c);
+    }
+    onDataChange({ ...data, clientes: next });
+    setView("list");
+  };
+
+  const remove = (id) => {
+    onDataChange({ ...data, clientes: clientes.filter(c => c.id !== id) });
+  };
+
+  // Count vendas per client
+  const vendaCount = (clienteNome) => (data.vendas || []).filter(v => v.cliente === clienteNome).length;
+
+  if (view === "add" || view === "edit") return (
+    <div>
+      <button onClick={() => setView("list")} style={{ background: "none", border: "none", color: C.teal, fontWeight: 800, fontSize: 16, cursor: "pointer", marginBottom: 16, padding: 0, fontFamily: "inherit" }}>Voltar</button>
+      <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: C.shadow }}>
+        <h3 style={{ margin: "0 0 18px", color: C.text, fontSize: 18, fontWeight: 900 }}>{view === "add" ? "Novo Cliente" : "Editar Cliente"}</h3>
+        <label style={{ fontSize: 12, fontWeight: 800, color: C.muted, textTransform: "uppercase" }}>Nome *</label>
+        <input value={form.nome} onChange={e => setForm(f => ({...f, nome: e.target.value}))} placeholder="Nome do cliente" style={{ ...inp, marginTop: 6 }} />
+        <label style={{ fontSize: 12, fontWeight: 800, color: C.muted, textTransform: "uppercase" }}>Endereco</label>
+        <input value={form.endereco} onChange={e => setForm(f => ({...f, endereco: e.target.value}))} placeholder="Endereco de entrega" style={{ ...inp, marginTop: 6 }} />
+        <label style={{ fontSize: 12, fontWeight: 800, color: C.muted, textTransform: "uppercase" }}>Telefone</label>
+        <input value={form.telefone} onChange={e => setForm(f => ({...f, telefone: e.target.value}))} placeholder="Telefone (opcional)" style={{ ...inp, marginTop: 6 }} />
+        <button onClick={save} disabled={!form.nome.trim()} style={{ width: "100%", padding: "14px 0", background: form.nome.trim() ? C.teal : C.border, color: C.white, border: "none", borderRadius: 12, fontWeight: 900, fontSize: 16, cursor: form.nome.trim() ? "pointer" : "not-allowed", fontFamily: "inherit", marginTop: 4 }}>Salvar Cliente</button>
+        {view === "edit" && <button onClick={() => { remove(editCliente.id); setView("list"); }} style={{ width: "100%", padding: "12px 0", background: C.redBg, color: C.red, border: `1px solid ${C.red}33`, borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit", marginTop: 10 }}>Excluir Cliente</button>}
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ background: C.white, borderRadius: 14, padding: 14, boxShadow: C.shadow, borderLeft: `4px solid ${C.teal}`, flex: 1, marginRight: 10 }}>
+          <div style={{ fontSize: 9, fontWeight: 800, color: C.muted, textTransform: "uppercase" }}>CLIENTES</div>
+          <div style={{ fontSize: 30, fontWeight: 900, color: C.teal }}>{clientes.length}</div>
+        </div>
+        <button onClick={openAdd} style={{ background: C.teal, color: C.white, border: "none", borderRadius: 12, padding: "12px 18px", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>+ Novo</button>
+      </div>
+
+      {clientes.length === 0 && (
+        <div style={{ textAlign: "center", color: C.muted, padding: 50, fontSize: 14 }}>
+          Nenhum cliente cadastrado.<br />Clique em "+ Novo" para adicionar.
+        </div>
+      )}
+
+      {[...clientes].sort((a,b) => a.nome.localeCompare(b.nome)).map(c => (
+        <div key={c.id} style={{ background: C.white, borderRadius: 14, padding: "14px 16px", marginBottom: 10, boxShadow: C.shadow, borderLeft: `4px solid ${C.teal}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 16, color: C.text }}>{c.nome}</div>
+              {c.endereco && <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{c.endereco}</div>}
+              {c.telefone && <div style={{ fontSize: 12, color: C.muted }}>{c.telefone}</div>}
+              <div style={{ fontSize: 11, color: C.teal, fontWeight: 700, marginTop: 4 }}>{vendaCount(c.nome)} venda{vendaCount(c.nome) !== 1 ? "s" : ""} registrada{vendaCount(c.nome) !== 1 ? "s" : ""}</div>
+            </div>
+            <button onClick={() => openEdit(c)} style={{ background: C.tealLight, border: `1px solid ${C.teal}33`, borderRadius: 8, padding: "6px 12px", color: C.teal, cursor: "pointer", fontSize: 12, fontWeight: 700 }}>Editar</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// NOVA VENDA FORM - com autocomplete de clientes
+function NovaVendaForm({ allProducts, clientes, onSave, onCancel }) {
+  const [clienteId, setClienteId] = useState("");
+  const [clienteManual, setClienteManual] = useState("");
+  const [useExisting, setUseExisting] = useState(clientes.length > 0);
   const [endereco, setEndereco] = useState("");
   const [deliveryDate, setDeliveryDate] = useState("");
   const [items, setItems] = useState([{ productId: allProducts[0]?.id || "", qty: "" }]);
+
+  // Auto-fill address when client selected
+  useEffect(() => {
+    if (clienteId) {
+      const c = clientes.find(x => x.id === clienteId);
+      if (c) setEndereco(c.endereco || "");
+    }
+  }, [clienteId]);
+
   const addItem = () => setItems(p => [...p, { productId: allProducts[0]?.id || "", qty: "" }]);
   const removeItem = i => setItems(p => p.filter((_, idx) => idx !== i));
   const updItem = (i, f, v) => setItems(p => p.map((it, idx) => idx === i ? { ...it, [f]: v } : it));
   const totalQty = items.reduce((s, it) => s + (parseInt(it.qty) || 0), 0);
-  const canSave = cliente.trim() && totalQty > 0;
+
+  const clienteName = useExisting
+    ? (clientes.find(c => c.id === clienteId)?.nome || "")
+    : clienteManual;
+
+  const canSave = clienteName.trim() && totalQty > 0 && deliveryDate !== "";
+
   const handleSave = () => {
     if (!canSave) return;
     onSave({
-      id: Date.now().toString(), cliente: cliente.trim(), endereco: endereco.trim(),
+      id: Date.now().toString(),
+      cliente: clienteName.trim(),
+      endereco: endereco.trim(),
       deliveryDate: deliveryDate ? new Date(deliveryDate + "T12:00:00").getTime() : null,
       items: items.filter(it => parseInt(it.qty) > 0).map(it => ({
         productId: it.productId,
@@ -204,18 +294,37 @@ function NovaVendaForm({ allProducts, onSave, onCancel }) {
       status: "pendente", ts: Date.now(),
     });
   };
+
   const inp = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1.5px solid ${C.border}`, fontSize: 15, outline: "none", background: C.white, boxSizing: "border-box", color: C.text, fontFamily: "inherit" };
+
   return (
     <div>
       <button onClick={onCancel} style={{ background: "none", border: "none", color: C.teal, fontWeight: 800, fontSize: 16, cursor: "pointer", marginBottom: 16, padding: 0, fontFamily: "inherit" }}>Voltar</button>
+
       <div style={{ background: C.white, borderRadius: 16, padding: 18, boxShadow: C.shadow, marginBottom: 14 }}>
-        <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8, color: C.text }}>Cliente</div>
-        <input value={cliente} onChange={e => setCliente(e.target.value)} placeholder="Nome do cliente" style={{ ...inp, marginBottom: 14 }} />
+        <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12, color: C.text }}>Cliente</div>
+
+        {clientes.length > 0 && (
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <button onClick={() => setUseExisting(true)} style={{ flex: 1, padding: "8px 0", borderRadius: 10, background: useExisting ? C.teal : C.white, color: useExisting ? C.white : C.muted, border: `1.5px solid ${useExisting ? C.teal : C.border}`, fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Cadastrado</button>
+            <button onClick={() => setUseExisting(false)} style={{ flex: 1, padding: "8px 0", borderRadius: 10, background: !useExisting ? C.teal : C.white, color: !useExisting ? C.white : C.muted, border: `1.5px solid ${!useExisting ? C.teal : C.border}`, fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Novo</button>
+          </div>
+        )}
+
+        {useExisting && clientes.length > 0
+          ? <select value={clienteId} onChange={e => setClienteId(e.target.value)} style={{ ...inp, appearance: "none", marginBottom: 12 }}>
+              <option value="">-- Selecione um cliente --</option>
+              {[...clientes].sort((a,b) => a.nome.localeCompare(b.nome)).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          : <input value={clienteManual} onChange={e => setClienteManual(e.target.value)} placeholder="Nome do cliente" style={{ ...inp, marginBottom: 12 }} />
+        }
+
         <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8, color: C.text }}>Endereco</div>
-        <input value={endereco} onChange={e => setEndereco(e.target.value)} placeholder="Endereco de entrega (opcional)" style={{ ...inp, marginBottom: 14 }} />
+        <input value={endereco} onChange={e => setEndereco(e.target.value)} placeholder="Endereco de entrega (opcional)" style={{ ...inp, marginBottom: 12 }} />
         <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8, color: C.text }}>Data de Entrega</div>
         <input type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} style={{ ...inp }} />
       </div>
+
       <div style={{ background: C.white, borderRadius: 16, padding: 18, boxShadow: C.shadow, marginBottom: 14 }}>
         <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 14, color: C.text }}>Produtos</div>
         {items.map((it, i) => (
@@ -233,16 +342,13 @@ function NovaVendaForm({ allProducts, onSave, onCancel }) {
             </div>
           </div>
         ))}
-        <button onClick={addItem} style={{ width: "100%", padding: "11px 0", border: `1.5px dashed ${C.border}`, borderRadius: 12, background: "none", color: C.muted, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
-          + Adicionar produto
-        </button>
+        <button onClick={addItem} style={{ width: "100%", padding: "11px 0", border: `1.5px dashed ${C.border}`, borderRadius: 12, background: "none", color: C.muted, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>+ Adicionar produto</button>
       </div>
       <button onClick={handleSave} disabled={!canSave} style={{ width: "100%", padding: "16px 0", background: canSave ? C.teal : C.border, color: C.white, border: "none", borderRadius: 14, fontWeight: 900, fontSize: 17, cursor: canSave ? "pointer" : "not-allowed", fontFamily: "inherit" }}>Confirmar Venda</button>
     </div>
   );
 }
 
-// VENDA CARD
 function VendaCard({ venda, onDeliver, onDelete }) {
   const [open, setOpen] = useState(false);
   const isEntregue = venda.status === "entregue";
@@ -273,14 +379,8 @@ function VendaCard({ venda, onDeliver, onDelete }) {
             </div>
           ))}
           <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-            {!isEntregue && (
-              <button onClick={() => onDeliver(venda.id)} style={{ flex: 2, padding: "10px 0", background: C.teal, color: C.white, border: "none", borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
-                Marcar como Entregue
-              </button>
-            )}
-            <button onClick={() => onDelete(venda.id)} style={{ flex: 1, padding: "10px 0", background: C.redBg, color: C.red, border: `1px solid ${C.red}33`, borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
-              Excluir
-            </button>
+            {!isEntregue && <button onClick={() => onDeliver(venda.id)} style={{ flex: 2, padding: "10px 0", background: C.teal, color: C.white, border: "none", borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Marcar como Entregue</button>}
+            <button onClick={() => onDelete(venda.id)} style={{ flex: 1, padding: "10px 0", background: C.redBg, color: C.red, border: `1px solid ${C.red}33`, borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Excluir</button>
           </div>
         </div>
       )}
@@ -288,11 +388,11 @@ function VendaCard({ venda, onDeliver, onDelete }) {
   );
 }
 
-// VENDAS TAB
 function VendasTab({ data, onDataChange }) {
   const [view, setView] = useState("list");
   const [filter, setFilter] = useState("pendente");
   const vendas = data.vendas || [];
+  const clientes = data.clientes || [];
   const pendentes = vendas.filter(v => v.status === "pendente");
   const entregues = vendas.filter(v => v.status === "entregue");
   const allProducts = [...data.slices, ...data.sorvetes, ...data.italianice, ...data.chocolates];
@@ -319,7 +419,7 @@ function VendasTab({ data, onDataChange }) {
     onDataChange({ ...nd, vendas: vendas.filter(v => v.id !== id) });
   };
 
-  if (view === "nova") return <NovaVendaForm allProducts={allProducts} onSave={handleNovaVenda} onCancel={() => setView("list")} />;
+  if (view === "nova") return <NovaVendaForm allProducts={allProducts} clientes={clientes} onSave={handleNovaVenda} onCancel={() => setView("list")} />;
   const shown = filter === "pendente" ? pendentes : entregues;
   return (
     <div>
@@ -350,7 +450,6 @@ function VendasTab({ data, onDataChange }) {
   );
 }
 
-// ENTREGAS TAB
 function EntregasTab({ data }) {
   const vendas = (data.vendas || []).filter(v => v.status === "pendente");
   const sorted = [...vendas].sort((a, b) => {
@@ -370,7 +469,6 @@ function EntregasTab({ data }) {
     { label: "Proximas",    color: C.gold,  items: sorted.filter(v => v.deliveryDate && v.deliveryDate >= weekMs) },
     { label: "Sem data",    color: C.muted, items: sorted.filter(v => !v.deliveryDate) },
   ].filter(g => g.items.length > 0);
-
   if (sorted.length === 0) return <div style={{ textAlign: "center", color: C.muted, padding: 60, fontSize: 14 }}>Nenhuma entrega pendente.</div>;
   return (
     <div>
@@ -381,9 +479,7 @@ function EntregasTab({ data }) {
       </div>
       {groups.map(g => (
         <div key={g.label} style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 900, color: g.color, marginBottom: 8 }}>
-            {g.label} <span style={{ background: g.color + "22", borderRadius: 20, padding: "1px 8px", fontSize: 11 }}>{g.items.length}</span>
-          </div>
+          <div style={{ fontSize: 13, fontWeight: 900, color: g.color, marginBottom: 8 }}>{g.label} <span style={{ background: g.color + "22", borderRadius: 20, padding: "1px 8px", fontSize: 11 }}>{g.items.length}</span></div>
           {g.items.map(v => {
             const totalQty = v.items.reduce((s, i) => s + i.qty, 0);
             return (
@@ -394,9 +490,7 @@ function EntregasTab({ data }) {
                     <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{v.deliveryDate ? fmtDate(v.deliveryDate) : "Sem data"} - {totalQty} un</div>
                     {v.endereco && <div style={{ fontSize: 11, color: C.muted }}>{v.endereco}</div>}
                   </div>
-                  <div style={{ textAlign: "right" }}>
-                    {v.items.map((it, i) => <div key={i} style={{ fontSize: 11, color: C.muted }}>{it.productName}: {it.qty}</div>)}
-                  </div>
+                  <div style={{ textAlign: "right" }}>{v.items.map((it, i) => <div key={i} style={{ fontSize: 11, color: C.muted }}>{it.productName}: {it.qty}</div>)}</div>
                 </div>
               </div>
             );
@@ -407,13 +501,11 @@ function EntregasTab({ data }) {
   );
 }
 
-// MAIN APP
 export default function App() {
   const [tab, setTab] = useState("slices");
   const [data, setData] = useState(DEFAULT_DATA);
   const [loading, setLoading] = useState(true);
   const [synced, setSynced] = useState(false);
-  const isSaving = useRef(false);
 
   useEffect(() => {
     const dbRef = ref(db, "estoque");
@@ -426,10 +518,10 @@ export default function App() {
           italianice: val.italianice || prev.italianice,
           chocolates: val.chocolates || prev.chocolates,
           vendas:     val.vendas     || prev.vendas,
+          clientes:   val.clientes   || prev.clientes || [],
         }));
       }
-      setSynced(true);
-      setLoading(false);
+      setSynced(true); setLoading(false);
     });
     return () => unsub();
   }, []);
@@ -446,9 +538,7 @@ export default function App() {
 
   if (loading) return (
     <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 14, color: C.muted, fontWeight: 700 }}>Carregando...</div>
-      </div>
+      <div style={{ color: C.muted, fontSize: 16, fontWeight: 700 }}>Carregando...</div>
     </div>
   );
 
@@ -457,88 +547,37 @@ export default function App() {
       <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
       <style>{`button:active{opacity:0.78} *{box-sizing:border-box}`}</style>
 
-      {/* BANNER */}
       <div style={{ position: "relative", overflow: "hidden", height: 200 }}>
         <img src={`data:image/jpeg;base64,${PHOTO_B64}`} alt="Spumoni" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 40%" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg,rgba(29,92,78,0.92) 0%,rgba(29,92,78,0.70) 50%,rgba(29,92,78,0.20) 100%)" }} />
         <div style={{ position: "relative", zIndex: 2, padding: "14px 20px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
           <div>
-            {/* Frase acima do logo */}
-            <div style={{
-              fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.92)",
-              letterSpacing: 0.5, marginBottom: 8, fontStyle: "italic",
-              textShadow: "0 1px 4px rgba(0,0,0,0.5)",
-            }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.92)", letterSpacing: 0.5, marginBottom: 8, fontStyle: "italic", textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>
               Mamma Mia! Let's make Spumoni
             </div>
-            <img src={`data:image/png;base64,${LOGO_B64}`} alt="Alinosi's Spumoni"
-              style={{ height: 82, width: "auto", objectFit: "contain", objectPosition: "left center", filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.4))" }} />
+            <img src={`data:image/png;base64,${LOGO_B64}`} alt="Alinosi's Spumoni" style={{ height: 82, width: "auto", objectFit: "contain", objectPosition: "left center", filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.4))" }} />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: synced ? "#4caf50" : "#ff9800", boxShadow: `0 0 6px ${synced ? "#4caf50" : "#ff9800"}aa` }} />
-            <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 12, fontWeight: 700, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>
-              {synced ? "Sincronizado em tempo real" : "Conectando..."}
-            </span>
+            <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 12, fontWeight: 700, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>{synced ? "Sincronizado em tempo real" : "Conectando..."}</span>
           </div>
         </div>
       </div>
 
-      {/* TABS */}
       <div style={{ background: C.teal, display: "flex", overflowX: "auto", borderBottom: `3px solid ${C.tealDark}` }}>
         {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
-            background: tab === t.id ? C.bg : "transparent", border: "none",
-            borderRadius: tab === t.id ? "10px 10px 0 0" : 0,
-            padding: "11px 13px", cursor: "pointer", whiteSpace: "nowrap",
-            color: tab === t.id ? C.teal : "rgba(255,255,255,0.85)",
-            fontWeight: tab === t.id ? 900 : 700, fontSize: 13,
-            fontFamily: "inherit", marginTop: tab === t.id ? 4 : 0, transition: "all 0.12s",
-          }}>{t.label}</button>
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ background: tab === t.id ? C.bg : "transparent", border: "none", borderRadius: tab === t.id ? "10px 10px 0 0" : 0, padding: "11px 13px", cursor: "pointer", whiteSpace: "nowrap", color: tab === t.id ? C.teal : "rgba(255,255,255,0.85)", fontWeight: tab === t.id ? 900 : 700, fontSize: 13, fontFamily: "inherit", marginTop: tab === t.id ? 4 : 0, transition: "all 0.12s" }}>{t.label}</button>
         ))}
       </div>
 
-      {/* CONTENT */}
       <div style={{ padding: "16px 14px 48px" }}>
-        {tab === "slices" && (
-          <>
-            <SummaryCards items={data.slices} />
-            <AddFlavor onAdd={n => addItem("slices", n)} />
-            {data.slices.map(item => (
-              <ProductCard key={item.id} item={item} showDelete={true}
-                onChange={u => updateSlice(item.id, u)}
-                onDelete={() => removeItem("slices", item.id)} />
-            ))}
-          </>
-        )}
-        {tab === "sorvetes" && (
-          <>
-            <SummaryCards items={data.sorvetes} />
-            <AddFlavor onAdd={n => addItem("sorvetes", n)} />
-            {data.sorvetes.length === 0
-              ? <div style={{textAlign:"center",color:C.muted,padding:40}}>Nenhum sabor. Adicione acima.</div>
-              : data.sorvetes.map(item => <ProductCard key={item.id} item={item} showDelete onChange={u => updateItem("sorvetes",item.id,u)} onDelete={()=>removeItem("sorvetes",item.id)} />)}
-          </>
-        )}
-        {tab === "italianice" && (
-          <>
-            <SummaryCards items={data.italianice} />
-            <AddFlavor onAdd={n => addItem("italianice", n)} />
-            {data.italianice.length === 0
-              ? <div style={{textAlign:"center",color:C.muted,padding:40}}>Nenhum sabor. Adicione acima.</div>
-              : data.italianice.map(item => <ProductCard key={item.id} item={item} showDelete onChange={u => updateItem("italianice",item.id,u)} onDelete={()=>removeItem("italianice",item.id)} />)}
-          </>
-        )}
-        {tab === "chocolates" && (
-          <>
-            <SummaryCards items={data.chocolates} />
-            <AddFlavor onAdd={n => addItem("chocolates", n)} />
-            {data.chocolates.length === 0
-              ? <div style={{textAlign:"center",color:C.muted,padding:40}}>Nenhum sabor. Adicione acima.</div>
-              : data.chocolates.map(item => <ProductCard key={item.id} item={item} showDelete onChange={u => updateItem("chocolates",item.id,u)} onDelete={()=>removeItem("chocolates",item.id)} />)}
-          </>
-        )}
+        {tab === "slices" && (<><SummaryCards items={data.slices} /><AddFlavor onAdd={n => addItem("slices", n)} />{data.slices.map(item => <ProductCard key={item.id} item={item} showDelete onChange={u => updateSlice(item.id, u)} onDelete={() => removeItem("slices", item.id)} />)}</>)}
+        {tab === "sorvetes" && (<><SummaryCards items={data.sorvetes} /><AddFlavor onAdd={n => addItem("sorvetes", n)} />{data.sorvetes.length === 0 ? <div style={{textAlign:"center",color:C.muted,padding:40}}>Nenhum sabor. Adicione acima.</div> : data.sorvetes.map(item => <ProductCard key={item.id} item={item} showDelete onChange={u => updateItem("sorvetes",item.id,u)} onDelete={()=>removeItem("sorvetes",item.id)} />)}</>)}
+        {tab === "italianice" && (<><SummaryCards items={data.italianice} /><AddFlavor onAdd={n => addItem("italianice", n)} />{data.italianice.length === 0 ? <div style={{textAlign:"center",color:C.muted,padding:40}}>Nenhum sabor. Adicione acima.</div> : data.italianice.map(item => <ProductCard key={item.id} item={item} showDelete onChange={u => updateItem("italianice",item.id,u)} onDelete={()=>removeItem("italianice",item.id)} />)}</>)}
+        {tab === "chocolates" && (<><SummaryCards items={data.chocolates} /><AddFlavor onAdd={n => addItem("chocolates", n)} />{data.chocolates.length === 0 ? <div style={{textAlign:"center",color:C.muted,padding:40}}>Nenhum sabor. Adicione acima.</div> : data.chocolates.map(item => <ProductCard key={item.id} item={item} showDelete onChange={u => updateItem("chocolates",item.id,u)} onDelete={()=>removeItem("chocolates",item.id)} />)}</>)}
         {tab === "vendas"    && <VendasTab data={data} onDataChange={handleDataChange} />}
         {tab === "entregas"  && <EntregasTab data={data} />}
+        {tab === "clientes"  && <ClientesTab clientes={data.clientes || []} data={data} onDataChange={handleDataChange} />}
       </div>
     </div>
   );

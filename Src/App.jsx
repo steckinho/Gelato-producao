@@ -349,7 +349,74 @@ function NovaVendaForm({ allProducts, clientes, onSave, onCancel }) {
   );
 }
 
-function VendaCard({ venda, onDeliver, onDelete }) {
+// EDIT VENDA FORM
+function EditVendaForm({ venda, allProducts, onSave, onCancel }) {
+  const [cliente, setCliente] = useState(venda.cliente || "");
+  const [endereco, setEndereco] = useState(venda.endereco || "");
+  const [deliveryDate, setDeliveryDate] = useState(
+    venda.deliveryDate ? new Date(venda.deliveryDate).toISOString().split("T")[0] : ""
+  );
+  const [items, setItems] = useState(
+    venda.items.map(it => ({ productId: it.productId, qty: String(it.qty) }))
+  );
+  const addItem = () => setItems(p => [...p, { productId: allProducts[0]?.id || "", qty: "" }]);
+  const removeItem = i => setItems(p => p.filter((_, idx) => idx !== i));
+  const updItem = (i, f, v) => setItems(p => p.map((it, idx) => idx === i ? { ...it, [f]: v } : it));
+  const totalQty = items.reduce((s, it) => s + (parseInt(it.qty) || 0), 0);
+  const canSave = cliente.trim() && totalQty > 0 && deliveryDate !== "";
+  const handleSave = () => {
+    if (!canSave) return;
+    onSave({
+      ...venda,
+      cliente: cliente.trim(),
+      endereco: endereco.trim(),
+      deliveryDate: deliveryDate ? new Date(deliveryDate + "T12:00:00").getTime() : null,
+      items: items.filter(it => parseInt(it.qty) > 0).map(it => ({
+        productId: it.productId,
+        productName: allProducts.find(p => p.id === it.productId)?.name || "",
+        qty: parseInt(it.qty),
+      })),
+    });
+  };
+  const inp = { width: "100%", padding: "12px 14px", borderRadius: 12, border: `1.5px solid ${C.border}`, fontSize: 15, outline: "none", background: C.white, boxSizing: "border-box", color: C.text, fontFamily: "inherit" };
+  return (
+    <div>
+      <button onClick={onCancel} style={{ background: "none", border: "none", color: C.teal, fontWeight: 800, fontSize: 16, cursor: "pointer", marginBottom: 16, padding: 0, fontFamily: "inherit" }}>Voltar</button>
+      <div style={{ background: C.white, borderRadius: 16, padding: 18, boxShadow: C.shadow, marginBottom: 14 }}>
+        <h3 style={{ margin: "0 0 14px", fontSize: 17, fontWeight: 900, color: C.text }}>Editar Venda</h3>
+        <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8, color: C.text }}>Cliente</div>
+        <input value={cliente} onChange={e => setCliente(e.target.value)} placeholder="Nome do cliente" style={{ ...inp, marginBottom: 14 }} />
+        <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8, color: C.text }}>Endereco</div>
+        <input value={endereco} onChange={e => setEndereco(e.target.value)} placeholder="Endereco de entrega" style={{ ...inp, marginBottom: 14 }} />
+        <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8, color: C.text }}>Data de Entrega <span style={{ color: C.red }}>*</span></div>
+        <input type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} style={{ ...inp, borderColor: !deliveryDate ? C.red : C.border }} />
+        {!deliveryDate && <div style={{ fontSize: 11, color: C.red, fontWeight: 700, marginTop: 4 }}>Campo obrigatorio</div>}
+      </div>
+      <div style={{ background: C.white, borderRadius: 16, padding: 18, boxShadow: C.shadow, marginBottom: 14 }}>
+        <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 14, color: C.text }}>Produtos</div>
+        {items.map((it, i) => (
+          <div key={i} style={{ marginBottom: 16, paddingBottom: 16, borderBottom: i < items.length - 1 ? `1px solid ${C.border}` : "none" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 6 }}>Item {i + 1}</div>
+            <select value={it.productId} onChange={e => updItem(i, "productId", e.target.value)} style={{ ...inp, marginBottom: 10, appearance: "none" }}>
+              {allProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: C.muted, marginBottom: 5 }}>QTD</div>
+                <input type="number" min="0" value={it.qty} onChange={e => updItem(i, "qty", e.target.value)} placeholder="0" style={{ ...inp }} />
+              </div>
+              {items.length > 1 && <button onClick={() => removeItem(i)} style={{ marginBottom: 2, background: C.redBg, border: `1px solid ${C.red}33`, borderRadius: 10, padding: "11px 14px", color: C.red, cursor: "pointer", fontSize: 16, fontWeight: 700 }}>-</button>}
+            </div>
+          </div>
+        ))}
+        <button onClick={addItem} style={{ width: "100%", padding: "11px 0", border: `1.5px dashed ${C.border}`, borderRadius: 12, background: "none", color: C.muted, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>+ Adicionar produto</button>
+      </div>
+      <button onClick={handleSave} disabled={!canSave} style={{ width: "100%", padding: "16px 0", background: canSave ? C.teal : C.border, color: C.white, border: "none", borderRadius: 14, fontWeight: 900, fontSize: 17, cursor: canSave ? "pointer" : "not-allowed", fontFamily: "inherit" }}>Salvar Alteracoes</button>
+    </div>
+  );
+}
+
+function VendaCard({ venda, onDeliver, onDelete, onEdit }) {
   const [open, setOpen] = useState(false);
   const isEntregue = venda.status === "entregue";
   const totalQty = venda.items.reduce((s, i) => s + i.qty, 0);
@@ -380,6 +447,7 @@ function VendaCard({ venda, onDeliver, onDelete }) {
           ))}
           <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
             {!isEntregue && <button onClick={() => onDeliver(venda.id)} style={{ flex: 2, padding: "10px 0", background: C.teal, color: C.white, border: "none", borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Marcar como Entregue</button>}
+            <button onClick={() => onEdit(venda)} style={{ flex: 1, padding: "10px 0", background: C.tealLight, color: C.teal, border: `1.5px solid ${C.teal}33`, borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Editar</button>
             <button onClick={() => onDelete(venda.id)} style={{ flex: 1, padding: "10px 0", background: C.redBg, color: C.red, border: `1px solid ${C.red}33`, borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Excluir</button>
           </div>
         </div>
@@ -391,6 +459,7 @@ function VendaCard({ venda, onDeliver, onDelete }) {
 function VendasTab({ data, onDataChange }) {
   const [view, setView] = useState("list");
   const [filter, setFilter] = useState("pendente");
+  const [editingVenda, setEditingVenda] = useState(null);
   const vendas = data.vendas || [];
   const clientes = data.clientes || [];
   const pendentes = vendas.filter(v => v.status === "pendente");
@@ -419,7 +488,13 @@ function VendasTab({ data, onDataChange }) {
     onDataChange({ ...nd, vendas: vendas.filter(v => v.id !== id) });
   };
 
+  const handleEditSave = (updated) => {
+    onDataChange({ ...data, vendas: vendas.map(v => v.id === updated.id ? updated : v) });
+    setEditingVenda(null); setView("list");
+  };
+
   if (view === "nova") return <NovaVendaForm allProducts={allProducts} clientes={clientes} onSave={handleNovaVenda} onCancel={() => setView("list")} />;
+  if (view === "edit" && editingVenda) return <EditVendaForm venda={editingVenda} allProducts={allProducts} clientes={clientes} onSave={handleEditSave} onCancel={() => { setEditingVenda(null); setView("list"); }} />;
   const shown = filter === "pendente" ? pendentes : entregues;
   return (
     <div>
@@ -445,7 +520,7 @@ function VendasTab({ data, onDataChange }) {
       </div>
       {shown.length === 0
         ? <div style={{ textAlign: "center", color: C.muted, padding: 40, fontSize: 14 }}>{filter === "pendente" ? "Nenhuma venda pendente." : "Nenhuma entrega ainda."}</div>
-        : shown.map(v => <VendaCard key={v.id} venda={v} onDeliver={handleDeliver} onDelete={handleDelete} />)}
+        : shown.map(v => <VendaCard key={v.id} venda={v} onDeliver={handleDeliver} onDelete={handleDelete} onEdit={(v) => { setEditingVenda(v); setView("edit"); }} />)}
     </div>
   );
 }

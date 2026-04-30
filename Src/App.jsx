@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, onValue, set } from "firebase/database";
 
-// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyDKfwfH3yElsp56QHUbQvU8-EXYuYrdf7s",
   authDomain: "alinosi-vendas.firebaseapp.com",
@@ -20,20 +19,22 @@ const PHOTO_B64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBAUEBAYFBQUGBgYHCQ4JCQgIC
 
 const TABS = [
   { id: "slices",      label: "Slices" },
-  { id: "sorvetes",   label: "Sorvetes" },
+  { id: "sorvetes",   label: "Tubs" },
   { id: "italianice", label: "Italian Ice" },
   { id: "chocolates", label: "Chocolates" },
   { id: "vendas",     label: "Vendas" },
   { id: "entregas",   label: "Entregas" },
 ];
 
+const DEFAULT_SLICES = [
+  { id: "sp12", name: "Spumoni 12 caixas",    stock: 0, deliveries: 0, delivered: 0, history: [] },
+  { id: "sp20", name: "Spumoni 20 caixas",    stock: 0, deliveries: 0, delivered: 0, history: [] },
+  { id: "np12", name: "Neapolitan 12 caixas", stock: 0, deliveries: 0, delivered: 0, history: [] },
+  { id: "np20", name: "Neapolitan 20 caixas", stock: 0, deliveries: 0, delivered: 0, history: [] },
+];
+
 const DEFAULT_DATA = {
-  slices: [
-    { id: "sp12", name: "Spumoni 12 caixas",    stock: 0, deliveries: 0, delivered: 0, history: [] },
-    { id: "sp20", name: "Spumoni 20 caixas",    stock: 0, deliveries: 0, delivered: 0, history: [] },
-    { id: "np12", name: "Neapolitan 12 caixas", stock: 0, deliveries: 0, delivered: 0, history: [] },
-    { id: "np20", name: "Neapolitan 20 caixas", stock: 0, deliveries: 0, delivered: 0, history: [] },
-  ],
+  slices: DEFAULT_SLICES,
   sorvetes: [], italianice: [], chocolates: [], vendas: [],
 };
 
@@ -97,22 +98,38 @@ function BulkAdd({ onAdd }) {
   );
 }
 
-// PRODUCT CARD
+// PRODUCT CARD - com edicao de nome
 function ProductCard({ item, onChange, onDelete, showDelete }) {
   const avg = calcAvg(item.history);
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState(item.name);
+
+  const commitName = () => {
+    if (draftName.trim()) onChange({ ...item, name: draftName.trim() });
+    setEditingName(false);
+  };
   const update = (field, val) => {
     const updated = { ...item, [field]: val };
     if (field === "delivered") updated.history = [...(item.history || []), { ts: Date.now(), type: "delivered", val: val - item.delivered }];
     onChange(updated);
   };
+
   return (
     <div style={{ background: C.white, borderRadius: 16, padding: 18, boxShadow: C.shadow, marginBottom: 12, borderLeft: `4px solid ${C.pink}` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-        <div>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: C.text }}>{item.name}</h3>
+        <div style={{ flex: 1, marginRight: 8 }}>
+          {editingName
+            ? <input autoFocus value={draftName} onChange={e => setDraftName(e.target.value)}
+                onBlur={commitName} onKeyDown={e => e.key === "Enter" && commitName()}
+                style={{ fontSize: 17, fontWeight: 900, color: C.text, border: `2px solid ${C.teal}`, borderRadius: 8, padding: "4px 8px", outline: "none", width: "100%", fontFamily: "inherit" }} />
+            : <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: C.text }}>{item.name}</h3>
+                <button onClick={() => { setDraftName(item.name); setEditingName(true); }}
+                  style={{ background: C.tealLight, border: `1px solid ${C.teal}33`, borderRadius: 6, padding: "2px 8px", color: C.teal, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>Editar</button>
+              </div>}
           {avg > 0 && <div style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 5, background: C.pinkLight, borderRadius: 20, padding: "2px 10px", fontSize: 12, fontWeight: 700, color: C.pink }}>Media mensal: {avg} un/mes</div>}
         </div>
-        {showDelete && <button onClick={onDelete} style={{ background: C.redBg, border: `1px solid ${C.red}33`, borderRadius: 8, padding: "4px 10px", color: C.red, cursor: "pointer", fontSize: 12, fontWeight: 700 }}>Remover</button>}
+        {showDelete && <button onClick={onDelete} style={{ background: C.redBg, border: `1px solid ${C.red}33`, borderRadius: 8, padding: "4px 10px", color: C.red, cursor: "pointer", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>Remover</button>}
       </div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <NumField label="Em Estoque"       value={item.stock}      onChange={v => update("stock", v)} />
@@ -150,6 +167,7 @@ function SummaryCards({ items }) {
   );
 }
 
+// ADD FLAVOR
 function AddFlavor({ onAdd }) {
   const [name, setName] = useState("");
   const go = () => { if (name.trim()) { onAdd(name.trim()); setName(""); } };
@@ -397,22 +415,18 @@ export default function App() {
   const [synced, setSynced] = useState(false);
   const isSaving = useRef(false);
 
-  // Listen to Firebase in real time
   useEffect(() => {
     const dbRef = ref(db, "estoque");
     const unsub = onValue(dbRef, (snapshot) => {
       const val = snapshot.val();
       if (val) {
-        setData(prev => {
-          // merge to keep local structure for missing keys
-          return {
-            slices:      val.slices      || prev.slices,
-            sorvetes:    val.sorvetes    || prev.sorvetes,
-            italianice:  val.italianice  || prev.italianice,
-            chocolates:  val.chocolates  || prev.chocolates,
-            vendas:      val.vendas      || prev.vendas,
-          };
-        });
+        setData(prev => ({
+          slices:     val.slices     || prev.slices,
+          sorvetes:   val.sorvetes   || prev.sorvetes,
+          italianice: val.italianice || prev.italianice,
+          chocolates: val.chocolates || prev.chocolates,
+          vendas:     val.vendas     || prev.vendas,
+        }));
       }
       setSynced(true);
       setLoading(false);
@@ -420,11 +434,9 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // Save to Firebase
   const handleDataChange = useCallback((next) => {
     setData(next);
-    isSaving.current = true;
-    set(ref(db, "estoque"), next).finally(() => { isSaving.current = false; });
+    set(ref(db, "estoque"), next);
   }, []);
 
   const updateSlice = (id, u) => handleDataChange({ ...data, slices: data.slices.map(s => s.id === id ? u : s) });
@@ -435,8 +447,7 @@ export default function App() {
   if (loading) return (
     <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 48 }}>*</div>
-        <div style={{ color: C.muted, fontSize: 16, fontWeight: 700, marginTop: 8 }}>Carregando...</div>
+        <div style={{ fontSize: 14, color: C.muted, fontWeight: 700 }}>Carregando...</div>
       </div>
     </div>
   );
@@ -446,11 +457,23 @@ export default function App() {
       <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
       <style>{`button:active{opacity:0.78} *{box-sizing:border-box}`}</style>
 
-      <div style={{ position: "relative", overflow: "hidden", height: 180 }}>
+      {/* BANNER */}
+      <div style={{ position: "relative", overflow: "hidden", height: 200 }}>
         <img src={`data:image/jpeg;base64,${PHOTO_B64}`} alt="Spumoni" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 40%" }} />
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg,rgba(29,92,78,0.88) 0%,rgba(29,92,78,0.65) 45%,rgba(29,92,78,0.15) 100%)" }} />
-        <div style={{ position: "relative", zIndex: 2, padding: "18px 20px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-          <img src={`data:image/png;base64,${LOGO_B64}`} alt="Alinosi's Spumoni" style={{ height: 90, width: "auto", objectFit: "contain", objectPosition: "left center", filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.4))" }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg,rgba(29,92,78,0.92) 0%,rgba(29,92,78,0.70) 50%,rgba(29,92,78,0.20) 100%)" }} />
+        <div style={{ position: "relative", zIndex: 2, padding: "14px 20px", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+          <div>
+            {/* Frase acima do logo */}
+            <div style={{
+              fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.92)",
+              letterSpacing: 0.5, marginBottom: 8, fontStyle: "italic",
+              textShadow: "0 1px 4px rgba(0,0,0,0.5)",
+            }}>
+              Mamma Mia! Let's make Spumoni
+            </div>
+            <img src={`data:image/png;base64,${LOGO_B64}`} alt="Alinosi's Spumoni"
+              style={{ height: 82, width: "auto", objectFit: "contain", objectPosition: "left center", filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.4))" }} />
+          </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: synced ? "#4caf50" : "#ff9800", boxShadow: `0 0 6px ${synced ? "#4caf50" : "#ff9800"}aa` }} />
             <span style={{ color: "rgba(255,255,255,0.9)", fontSize: 12, fontWeight: 700, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>
@@ -460,19 +483,62 @@ export default function App() {
         </div>
       </div>
 
+      {/* TABS */}
       <div style={{ background: C.teal, display: "flex", overflowX: "auto", borderBottom: `3px solid ${C.tealDark}` }}>
         {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ background: tab === t.id ? C.bg : "transparent", border: "none", borderRadius: tab === t.id ? "10px 10px 0 0" : 0, padding: "11px 13px", cursor: "pointer", whiteSpace: "nowrap", color: tab === t.id ? C.teal : "rgba(255,255,255,0.85)", fontWeight: tab === t.id ? 900 : 700, fontSize: 13, fontFamily: "inherit", marginTop: tab === t.id ? 4 : 0, transition: "all 0.12s" }}>{t.label}</button>
+          <button key={t.id} onClick={() => setTab(t.id)} style={{
+            background: tab === t.id ? C.bg : "transparent", border: "none",
+            borderRadius: tab === t.id ? "10px 10px 0 0" : 0,
+            padding: "11px 13px", cursor: "pointer", whiteSpace: "nowrap",
+            color: tab === t.id ? C.teal : "rgba(255,255,255,0.85)",
+            fontWeight: tab === t.id ? 900 : 700, fontSize: 13,
+            fontFamily: "inherit", marginTop: tab === t.id ? 4 : 0, transition: "all 0.12s",
+          }}>{t.label}</button>
         ))}
       </div>
 
+      {/* CONTENT */}
       <div style={{ padding: "16px 14px 48px" }}>
-        {tab === "slices"      && (<><SummaryCards items={data.slices} />{data.slices.map(item => <ProductCard key={item.id} item={item} showDelete={false} onChange={u => updateSlice(item.id, u)} />)}</>)}
-        {tab === "sorvetes"   && (<><SummaryCards items={data.sorvetes} /><AddFlavor onAdd={n => addItem("sorvetes", n)} />{data.sorvetes.length === 0 ? <div style={{textAlign:"center",color:C.muted,padding:40}}>Nenhum sabor. Adicione acima.</div> : data.sorvetes.map(item => <ProductCard key={item.id} item={item} showDelete onChange={u => updateItem("sorvetes",item.id,u)} onDelete={()=>removeItem("sorvetes",item.id)} />)}</>)}
-        {tab === "italianice" && (<><SummaryCards items={data.italianice} /><AddFlavor onAdd={n => addItem("italianice", n)} />{data.italianice.length === 0 ? <div style={{textAlign:"center",color:C.muted,padding:40}}>Nenhum sabor. Adicione acima.</div> : data.italianice.map(item => <ProductCard key={item.id} item={item} showDelete onChange={u => updateItem("italianice",item.id,u)} onDelete={()=>removeItem("italianice",item.id)} />)}</>)}
-        {tab === "chocolates" && (<><SummaryCards items={data.chocolates} /><AddFlavor onAdd={n => addItem("chocolates", n)} />{data.chocolates.length === 0 ? <div style={{textAlign:"center",color:C.muted,padding:40}}>Nenhum sabor. Adicione acima.</div> : data.chocolates.map(item => <ProductCard key={item.id} item={item} showDelete onChange={u => updateItem("chocolates",item.id,u)} onDelete={()=>removeItem("chocolates",item.id)} />)}</>)}
-        {tab === "vendas"     && <VendasTab data={data} onDataChange={handleDataChange} />}
-        {tab === "entregas"   && <EntregasTab data={data} />}
+        {tab === "slices" && (
+          <>
+            <SummaryCards items={data.slices} />
+            <AddFlavor onAdd={n => addItem("slices", n)} />
+            {data.slices.map(item => (
+              <ProductCard key={item.id} item={item} showDelete={true}
+                onChange={u => updateSlice(item.id, u)}
+                onDelete={() => removeItem("slices", item.id)} />
+            ))}
+          </>
+        )}
+        {tab === "sorvetes" && (
+          <>
+            <SummaryCards items={data.sorvetes} />
+            <AddFlavor onAdd={n => addItem("sorvetes", n)} />
+            {data.sorvetes.length === 0
+              ? <div style={{textAlign:"center",color:C.muted,padding:40}}>Nenhum sabor. Adicione acima.</div>
+              : data.sorvetes.map(item => <ProductCard key={item.id} item={item} showDelete onChange={u => updateItem("sorvetes",item.id,u)} onDelete={()=>removeItem("sorvetes",item.id)} />)}
+          </>
+        )}
+        {tab === "italianice" && (
+          <>
+            <SummaryCards items={data.italianice} />
+            <AddFlavor onAdd={n => addItem("italianice", n)} />
+            {data.italianice.length === 0
+              ? <div style={{textAlign:"center",color:C.muted,padding:40}}>Nenhum sabor. Adicione acima.</div>
+              : data.italianice.map(item => <ProductCard key={item.id} item={item} showDelete onChange={u => updateItem("italianice",item.id,u)} onDelete={()=>removeItem("italianice",item.id)} />)}
+          </>
+        )}
+        {tab === "chocolates" && (
+          <>
+            <SummaryCards items={data.chocolates} />
+            <AddFlavor onAdd={n => addItem("chocolates", n)} />
+            {data.chocolates.length === 0
+              ? <div style={{textAlign:"center",color:C.muted,padding:40}}>Nenhum sabor. Adicione acima.</div>
+              : data.chocolates.map(item => <ProductCard key={item.id} item={item} showDelete onChange={u => updateItem("chocolates",item.id,u)} onDelete={()=>removeItem("chocolates",item.id)} />)}
+          </>
+        )}
+        {tab === "vendas"    && <VendasTab data={data} onDataChange={handleDataChange} />}
+        {tab === "entregas"  && <EntregasTab data={data} />}
       </div>
     </div>
   );

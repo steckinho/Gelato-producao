@@ -489,7 +489,31 @@ function VendasTab({ data, onDataChange }) {
   };
 
   const handleEditSave = (updated) => {
-    onDataChange({ ...data, vendas: vendas.map(v => v.id === updated.id ? updated : v) });
+    const original = vendas.find(v => v.id === updated.id);
+
+    // Adjust deliveries: revert old quantities, apply new quantities
+    const adjustDeliveries = (arr) => arr.map(p => {
+      const oldHit = original.status === "pendente"
+        ? (original.items || []).find(i => i.productId === p.id)
+        : null;
+      const newHit = updated.status === "pendente"
+        ? (updated.items || []).find(i => i.productId === p.id)
+        : null;
+      const oldQty = oldHit ? oldHit.qty : 0;
+      const newQty = newHit ? newHit.qty : 0;
+      const diff = newQty - oldQty;
+      if (diff === 0) return p;
+      return { ...p, deliveries: Math.max(0, p.deliveries + diff) };
+    });
+
+    onDataChange({
+      ...data,
+      slices:     adjustDeliveries(data.slices),
+      sorvetes:   adjustDeliveries(data.sorvetes),
+      italianice: adjustDeliveries(data.italianice),
+      chocolates: adjustDeliveries(data.chocolates),
+      vendas: vendas.map(v => v.id === updated.id ? updated : v),
+    });
     setEditingVenda(null); setView("list");
   };
 
